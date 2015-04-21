@@ -33,6 +33,7 @@ namespace CommandClientVisualStudioTest
             IPAddress ipaddress = IPAddress.Parse("127.0.0.1");
             Command command = new Command(CommandType.UserExit, ipaddress, null);
             System.IO.Stream fakeStream = mocks.DynamicMock<System.IO.Stream>();
+
             byte[] commandBytes = { 0, 0, 0, 0 };
             byte[] ipLength = { 9, 0, 0, 0 };
             byte[] ip = { 49, 50, 55, 46, 48, 46, 48, 46, 49 };
@@ -53,31 +54,97 @@ namespace CommandClientVisualStudioTest
                 fakeStream.Flush();
             }
             mocks.ReplayAll();
-            CMDClient client = new CMDClient(null, "Bogus network name");
             
-            // we need to set the private variable here
+            CMDClient client = new CMDClient(null, "Bogus network name");
+
+            typeof(CMDClient).GetField("networkStream", BindingFlags.NonPublic | BindingFlags.Instance)
+            .SetValue(client, fakeStream);
 
             client.SendCommandToServerUnthreaded(command);
-            mocks.VerifyAll();
-            
+            mocks.VerifyAll();  
+
         }
 
         [TestMethod]
         public void TestUserExitCommandWithoutMocks()
         {
-            Assert.Fail("Not yet implemented");
+            IPAddress ipaddress = IPAddress.Parse("127.0.0.1");
+            Command command = new Command(CommandType.UserExit, ipaddress, null);
+            System.IO.MemoryStream fakeStream = new MemoryStream();
+
+            byte[] testBytes = { 0, 0, 0, 0, 9, 0, 0, 0, 49, 50, 55, 46, 48, 46, 48, 46, 49, 2, 0, 0, 0, 10, 0 };
+            CMDClient client = new CMDClient(null, "Bogus network name");
+
+            typeof(CMDClient).GetField("networkStream", BindingFlags.NonPublic | BindingFlags.Instance)
+            .SetValue(client, fakeStream);
+
+            client.SendCommandToServerUnthreaded(command);
+
+            for (var i = 0; i < testBytes.Length; i++)
+            {
+                Assert.AreEqual(testBytes[i], fakeStream.ToArray()[i]);
+            }
         }
 
         [TestMethod]
         public void TestSemaphoreReleaseOnNormalOperation()
         {
-            Assert.Fail("Not yet implemented");
+            IPAddress ipaddress = IPAddress.Parse("127.0.0.1");
+            Command command = new Command(CommandType.UserExit, ipaddress, null);
+            System.IO.Stream fakeStream = mocks.DynamicMock<System.IO.Stream>();
+            System.Threading.Semaphore fakeSemaphore = mocks.DynamicMock<System.Threading.Semaphore>();
+
+            using (mocks.Ordered())
+            {
+                Expect.Call(fakeSemaphore.WaitOne()).Return(true);
+                Expect.Call(fakeSemaphore.Release()).Return(1);
+            }
+            mocks.ReplayAll();
+
+            CMDClient client = new CMDClient(null, "Bogus network name");
+
+            typeof(CMDClient).GetField("networkStream", BindingFlags.NonPublic | BindingFlags.Instance)
+            .SetValue(client, fakeStream);
+
+            typeof(CMDClient).GetField("semaphore", BindingFlags.NonPublic | BindingFlags.Instance)
+            .SetValue(client, fakeSemaphore);
+
+            client.SendCommandToServerUnthreaded(command);
+            mocks.VerifyAll();  
         }
 
         [TestMethod]
         public void TestSemaphoreReleaseOnExceptionalOperation()
         {
-            Assert.Fail("Not yet implemented");
+            IPAddress ipaddress = IPAddress.Parse("127.0.0.1");
+            Command command = new Command(CommandType.UserExit, ipaddress, null);
+            System.IO.Stream fakeStream = mocks.DynamicMock<System.IO.Stream>();
+            System.Threading.Semaphore fakeSemaphore = mocks.DynamicMock<System.Threading.Semaphore>();
+
+            using (mocks.Ordered())
+            {
+                Expect.Call(fakeSemaphore.WaitOne()).Return(true);
+                fakeStream.Flush();
+                LastCall.On(fakeStream).Throw(new Exception());
+                Expect.Call(fakeSemaphore.Release()).Return(1);
+            }
+            mocks.ReplayAll();
+
+            CMDClient client = new CMDClient(null, "Bogus network name");
+
+            typeof(CMDClient).GetField("networkStream", BindingFlags.NonPublic | BindingFlags.Instance)
+            .SetValue(client, fakeStream);
+
+            typeof(CMDClient).GetField("semaphore", BindingFlags.NonPublic | BindingFlags.Instance)
+            .SetValue(client, fakeSemaphore);
+
+            try {
+                client.SendCommandToServerUnthreaded(command);
+            } catch (Exception e) {
+
+            }
+
+            mocks.VerifyAll();  
 
         }
     }
